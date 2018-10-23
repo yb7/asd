@@ -8,6 +8,7 @@ import (
   "reflect"
   "encoding/json"
   "errors"
+  "strconv"
 )
 
 type onceVo struct {
@@ -91,6 +92,11 @@ func Once(key string, duration time.Duration, fallback func() (interface{}, erro
         return
       }
       _, err = conn.Do("SET", key, bytes)
+      if err != nil {
+        return
+      }
+
+      _, err = conn.Do("EXPIRE", key, strconv.Itoa(int(duration) * 2))
     }
   })
   if err != nil {
