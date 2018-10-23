@@ -1,0 +1,6 @@
+package: github.com/yb7/asd
+import:
+- package: github.com/gomodule/redigo
+  version: ^2.0.0
+  subpackages:
+  - redis
