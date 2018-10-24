@@ -1,14 +1,13 @@
 package asd
 
 import (
-  "time"
-  "sync"
+  "encoding/json"
+  "errors"
   "fmt"
   "github.com/gomodule/redigo/redis"
   "reflect"
-  "encoding/json"
-  "errors"
-  "strconv"
+  "sync"
+  "time"
 )
 
 type onceVo struct {
@@ -95,8 +94,7 @@ func Once(key string, duration time.Duration, fallback func() (interface{}, erro
       if err != nil {
         return
       }
-
-      _, err = conn.Do("EXPIRE", key, strconv.Itoa(int(duration) * 2))
+      _, err = conn.Do("EXPIRE", key, 60)
     }
   })
   if err != nil {
