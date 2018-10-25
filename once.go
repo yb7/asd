@@ -8,6 +8,7 @@ import (
   "reflect"
   "sync"
   "time"
+  "math"
 )
 
 type onceVo struct {
@@ -94,7 +95,9 @@ func Once(key string, duration time.Duration, fallback func() (interface{}, erro
       if err != nil {
         return
       }
-      _, err = conn.Do("EXPIRE", key, 60)
+
+      var expireTime = math.Max(math.Ceil(duration.Seconds() * 2), 1)
+      _, err = conn.Do("EXPIRE", key, expireTime)
     }
   })
   if err != nil {
