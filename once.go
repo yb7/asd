@@ -13,13 +13,31 @@ import (
 
 type onceVo struct {
   Once *sync.Once
-  ExpiresAt int64
+  ExpiresAt time.Time
   Data interface{}
 }
 
 var onceMap sync.Map
 var lockMap sync.Map
 
+func init () {
+  go func() {
+    for true {
+      clearExpiresKey()
+      time.Sleep(1 * time.Second)
+    }
+  }()
+}
+
+func clearExpiresKey() {
+  onceMap.Range(func(key, value interface{}) bool {
+    v := value.(*onceVo)
+    if v.ExpiresAt.Add(1 * time.Second).Before(time.Now()) {
+      onceMap.Delete(key)
+    }
+    return true
+  })
+}
 
 func setV(source, dst interface{}) error {
   // ValueOf to enter reflect-land
@@ -55,7 +73,7 @@ func loadOnce(key string, duration time.Duration) *onceVo {
   onceObj, ok := onceMap.Load(key)
   if ok {
     once := onceObj.(*onceVo)
-    if once.ExpiresAt < time.Now().Unix() {
+    if once.ExpiresAt.Before(time.Now()) {
       onceMap.Delete(key)
     }
   }
@@ -63,7 +81,7 @@ func loadOnce(key string, duration time.Duration) *onceVo {
   if !ok {
     onceObj = &onceVo{
       Once: &sync.Once{},
-      ExpiresAt: time.Now().Add(duration).Unix(),
+      ExpiresAt: time.Now().Add(duration),
     }
     onceMap.Store(key, onceObj)
   }
