@@ -14,6 +14,7 @@ import (
 type onceVo struct {
   Once *sync.Once
   ExpiresAt int64
+  Data interface{}
 }
 
 var onceMap sync.Map
@@ -44,34 +45,34 @@ func unmarshalFromRedis(conn redis.Conn, key string, dst interface{}) error {
   }
   return json.Unmarshal(bytes, dst)
 }
-func Once(key string, duration time.Duration, fallback func() (interface{}, error), dst interface{}) error {
+
+func loadOnce(key string, duration time.Duration) *onceVo {
   lockI, _ := lockMap.LoadOrStore(key, &sync.Mutex{})
   lock := lockI.(*sync.Mutex)
-
-  conn := redisPool.Get()
-  defer conn.Close()
 
   lock.Lock()
 
   onceObj, ok := onceMap.Load(key)
   if ok {
     once := onceObj.(*onceVo)
-    if once.ExpiresAt > time.Now().Unix() {
-      lock.Unlock()
-      return unmarshalFromRedis(conn, key, dst)
-    } else {
+    if once.ExpiresAt < time.Now().Unix() {
       onceMap.Delete(key)
     }
   }
-  newOnce := &onceVo{
-    Once: &sync.Once{},
-    ExpiresAt: time.Now().Add(duration).Unix(),
+  onceObj, ok = onceMap.Load(key)
+  if !ok {
+    onceObj = &onceVo{
+      Once: &sync.Once{},
+      ExpiresAt: time.Now().Add(duration).Unix(),
+    }
+    onceMap.Store(key, onceObj)
   }
-  onceMap.Store(key, newOnce)
 
   lock.Unlock()
-
-  var hasValue = false
+  return onceObj.(*onceVo)
+}
+func OnceInMem(key string, duration time.Duration, fallback func() (interface{}, error), dst interface{}) error {
+  newOnce := loadOnce(key, duration)
 
   var err error
   newOnce.Once.Do(func() {
@@ -79,7 +80,41 @@ func Once(key string, duration time.Duration, fallback func() (interface{}, erro
     result, err = fallback()
     if err != nil {
       fmt.Errorf("get data error: %s", err.Error())
-      conn.Do("DEL", key)
+    } else {
+      newOnce.Data = result
+      onceMap.Store(key, newOnce)
+    }
+  })
+  if err != nil {
+    onceMap.Delete(key)
+    return err
+  } else {
+    onceObj, ok := onceMap.Load(key)
+    if ok {
+      once := onceObj.(*onceVo)
+      setV(once.Data, dst)
+    }
+  }
+  return nil
+}
+
+
+func OnceInRedis(key string, duration time.Duration, fallback func() (interface{}, error), dst interface{}) error {
+  newOnce := loadOnce(key, duration)
+
+  conn := redisPool.Get()
+  defer conn.Close()
+
+  var hasValue = false
+
+  var err error
+  newOnce.Once.Do(func() {
+    var result interface{}
+    result, err = fallback()
+
+    if err != nil {
+      fmt.Errorf("get data error: %s", err.Error())
+      //conn.Do("DEL", key) 不用删除，等待自动过期
     } else {
       if err = setV(result, dst); err != nil {
         return
@@ -98,6 +133,7 @@ func Once(key string, duration time.Duration, fallback func() (interface{}, erro
 
       var expireTime = math.Max(math.Ceil(duration.Seconds() * 2), 1)
       _, err = conn.Do("EXPIRE", key, expireTime)
+
     }
   })
   if err != nil {
