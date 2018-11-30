@@ -96,9 +96,7 @@ func OnceInMem(key string, duration time.Duration, fallback func() (interface{},
   newOnce.Once.Do(func() {
     var result interface{}
     result, err = fallback()
-    if err != nil {
-      fmt.Errorf("get data error: %s", err.Error())
-    } else {
+    if err == nil {
       newOnce.Data = result
       onceMap.Store(key, newOnce)
     }
@@ -110,7 +108,11 @@ func OnceInMem(key string, duration time.Duration, fallback func() (interface{},
     onceObj, ok := onceMap.Load(key)
     if ok {
       once := onceObj.(*onceVo)
-      setV(once.Data, dst)
+      if once.Data != nil {
+        setV(once.Data, dst)
+      } else {
+        onceMap.Delete(key)
+      }
     }
   }
   return nil
