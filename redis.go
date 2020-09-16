@@ -13,7 +13,7 @@ var (
 type RedisOptions struct {
   Host string
   Password string
-  DbNo     string
+  DbNo     int
   MaxIdle  string
 }
 
@@ -30,10 +30,13 @@ func newRedisPool(opt RedisOptions) *redis.Pool {
       if err != nil {
         return nil, err
       }
-      if _, err := c.Do("AUTH", opt.Password); err != nil {
-        c.Close()
-        return nil, err
+      if opt.Password != "" {
+        if _, err := c.Do("AUTH", opt.Password); err != nil {
+          c.Close()
+          return nil, err
+        }
       }
+
       if _, err := c.Do("SELECT", opt.DbNo); err != nil {
         c.Close()
         return nil, err
