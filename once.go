@@ -122,9 +122,6 @@ func OnceInMem(key string, duration time.Duration, fallback func() (interface{},
 func OnceInRedis(key string, duration time.Duration, fallback func() (interface{}, error), dst interface{}) error {
   newOnce := loadOnce(key, duration)
 
-  conn := redisPool.Get()
-  defer conn.Close()
-
   var hasValue = false
 
   var err error
@@ -146,6 +143,8 @@ func OnceInRedis(key string, duration time.Duration, fallback func() (interface{
       if err != nil {
         return
       }
+      conn := redisPool.Get()
+      defer conn.Close()
       _, err = conn.Do("SET", key, bytes)
       if err != nil {
         return
@@ -161,6 +160,8 @@ func OnceInRedis(key string, duration time.Duration, fallback func() (interface{
     return err
   }
   if !hasValue {
+    conn := redisPool.Get()
+    defer conn.Close()
     return unmarshalFromRedis(conn, key, dst)
   }
   return nil
