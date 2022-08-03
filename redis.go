@@ -10,11 +10,13 @@ import (
 var (
   redisPool *redis.Pool
 )
+
 type RedisOptions struct {
-  Host string
-  Password string
-  DbNo     string
-  MaxIdle  string
+  Host      string
+  Password  string
+  DbNo      string
+  MaxIdle   string
+  MaxActive int
 }
 
 func newRedisPool(opt RedisOptions) *redis.Pool {
@@ -22,10 +24,11 @@ func newRedisPool(opt RedisOptions) *redis.Pool {
   if i, err := strconv.Atoi(opt.MaxIdle); err == nil {
     maxIdle = i
   }
-	return &redis.Pool{
-		MaxIdle: maxIdle,
-		IdleTimeout: 240 * time.Second,
-    Dial: func () (redis.Conn, error) {
+  return &redis.Pool{
+    MaxActive:   opt.MaxActive,
+    MaxIdle:     maxIdle,
+    IdleTimeout: 240 * time.Second,
+    Dial: func() (redis.Conn, error) {
       c, err := redis.Dial("tcp", opt.Host)
       if err != nil {
         return nil, err
@@ -45,7 +48,7 @@ func newRedisPool(opt RedisOptions) *redis.Pool {
       }
       return c, nil
     },
-	}
+  }
 }
 
 func InitRedisPool(in RedisOptions) {
